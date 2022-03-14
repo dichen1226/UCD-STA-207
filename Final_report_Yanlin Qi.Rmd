@@ -1,0 +1,463 @@
+---
+title: "The Impact of Testing-policy Strictness on Daily COVID-19 New Cases Per Capita across Four Different Countries"
+author: "Yanlin Qi, 918983329"
+date: "3/12/2022"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H',echo = FALSE, warning = FALSE, message = FALSE, fig.align = 'center')
+```
+
+```{r}
+library(foreign)
+library(outliers)
+library(tidyverse)
+library(ggpubr)
+library(xts)
+library(lubridate)
+library(knitr)
+library(lme4)
+library(gplots)
+library(expss)
+library(Hmisc)
+library(reshape2)
+library(car)
+library(EnvStats)
+library(table1)
+library(heplots)
+library(phia)
+library(car)
+library(graphics)
+library(gridExtra)
+library(HH)
+library(heplots)
+library(effects)
+```
+
+# Abstract 
+
+The aim of this report is to examine the regional and COVID-19 testing policy strictness effects on daily new death cases per 1, 000 population using the WHO COVID-19 data set and other complimentary data set. To achieve this, the corresponding inferential analysis based on an two-way ANOVA model with interaction effects and pairwise comparison are then conducted. From our results, it can be statistically concluded that there is significant difference in daily new death cases per 1, 000 population across different countries and COVID-19 testing policy strictness levels. Moreover, India and  strictness level 2 corresponds having the lowest daily new cases per 1, 000 population. 
+
+# Introduction
+
+The the COVID-19 pandemic caused by the severe acute respiratory syndrome coronavirus 2 (SARS-CoV-2) has become a rapidly evolving public health emergency, and the response policies placed to mitigate the spread of COVID-19 are widely debated [1]. Intuitively, preventive measures adopted by the government such as social distancing, indoor mask, and vaccination requirement, can put direct effects on preventing and controlling the transmission of the respiratory infections, so as to pursue less excess deaths caused by COVID-19 pandemic. However, the test of COVID-19, especially the rapid antigen tests, has been less recognized for lowing the spread of COVID-19 and the excess mortality [2]. The strictness COVID-19 test policy also may also influence its effectiveness in reducing the community spread of coronavirus. 
+
+However, the symptoms of COVID-19 can be very similar to the clinical symptoms of influenza virus, especially in the autumn and winter. If the COVID-19 test is not carried out in time, there will be a gathering of undiagnosed patients, resulting in the increase of cross infection and nosocomial infection. In serious cases, it will lead to the paralysis of medical institutions and public health system. Therefore, the public needs to improve the understanding of the significance of COVID-19 testing. Thus different countries have taken a variety of prevention and control measures, among which, the COVID-19 testing policy plays an important role among all the contingencies. For example, the key population for the COVID-19 testing policy in China is continuously subject to all inspections, basically achieving active, rapid and accurate control, while the positive cases were in the climbing stage in some other countries due to the lack of full coverage of COVID-19 testing.
+
+Therefore, the effects of different strictness levels of  COVID-19 testing policies and the effects caused by regional differences on new daily deaths are potentially valuable to be investigated.
+
+# Background
+
+Detection of COVID-19 infections potentially impedes the transmission of coronavirus through positive infected individuals. There are also regional differences in the dissemination of COVID-19 pandemic. Although many factors may exits, it is still worthwhile to examine if there are significant differences among daily new deaths under different-strictness-level COVID-19 testing policies cross countries, which is the main question for investigation.
+
+First, to include the daily changes of the COVID-19 pandemic and the death conditions for different countries, the WHO COVID-19 dataset (https://covid19.who.int/WHO-COVID-19-global-data.csv) is utilized, which includes the worldwide daily new/cumulative corona-virus cases, deaths, and mortality at country level. 
+
+Second, to include the COVID-19 testing policy data with different strictness levels, an additional dataset indicating the date of mask orders for worldwide countries is also introduced, which can be accessed at https://ourworldindata.org/covid-face-coverings. The testing policy strictness levels are grouped into five categories: a) No testing policy, b)Testing only for those who both (a) have symptoms AND (b) meet specific criteria (e.g. key workers, admitted to hospital, came into contact with a known case, returned from overseas), c)Testing of anyone showing COVID-19 symptoms, d)Open public testing (e.g “drive through” testing available to asymptomatic people) [3]. 
+
+Additionally, to reasonably select appropriate countries for comparison analysis, the worldwide demographics of the national GDP per capita and the population density are utilized in this report.
+
+# Descriptive analysis 
+
+## Data exploration and Country Selection
+
+In this report, the countries facing severer COVID-19 pandemic threatens and different economic and population density status will be selected as the candidate explanatory variables. To demonstrate the hazard levels of COVID-19 and the differences of GPD per capita and population density levles across different countries, the distribution of the cumulative COVID-19 positive cases and cumulative deaths till March 11, 2022, the GPD per capita and population densities are shown as following maps.
+
+```{r}
+# load data
+covid <- read_csv("https://covid19.who.int/WHO-COVID-19-global-data.csv")
+policy <- read_csv("covid-19-testing-policy.csv")
+
+covid <- covid %>% mutate(Country=case_when(Country == "United States of America"  ~ "United States", TRUE~Country))
+names(policy)[1] <-"Country"
+names(covid)[1] <-"Day"
+
+covid_policy <- merge(covid, policy,by=c("Day","Country"))
+covid_policy <- covid_policy
+```
+
+
+```{r}
+# world map
+world <- map_data("world")
+
+covid <- covid %>%mutate(Country=case_when(Country == "The United Kingdom"  ~ "UK",
+                           Country == "United States" ~ "USA",
+                           Country == "Bolivia (Plurinational State of)" ~ "Bolivia",
+                           Country == "Syrian Arab Republic"  ~ "Syria",
+                           Country == "Saint Vincent and the Grenadines" ~ "Saint Vincent",
+                           Country == "Congo" ~ "Republic of Congo",
+                           
+                           Country == "North Macedonia"   ~  "Macedonia",
+                           Country == "Lao People's Democratic Republic"  ~  "Laos",
+                           Country == "Iran (Islamic Republic of)"  ~  "Iran",
+                           Country == "Russian Federation"   ~  "Russia",
+                           Country == "Democratic People's Republic of Korea" ~  "North Korea",
+                           Country == "Republic of Korea"  ~  "South Korea",
+                           Country == "Congo" ~  "Republic of Congo",
+                           Country == "Venezuela (Bolivarian Republic of)"  ~  "Venezuela",
+                           Country == "United Republic of Tanzania"  ~  "Tanzania",
+                           Country == "Viet Nam" ~"Vietnam",
+                           Country == "United States Virgin Islands"~"Virgin Islands",
+                           Country == "Côte d’Ivoire"~ "Ivory Coast",
+                           TRUE~Country))
+
+cumu_covid<- covid%>%filter(Day =="2022-3-11")
+world_cumu_covid <- world%>%left_join(cumu_covid, by=c("region"="Country"))
+
+cumu_covid_plt <- ggplot() +
+  geom_map(
+    data = world_cumu_covid, map = world_cumu_covid,
+    aes(long, lat, map_id = region, fill=Cumulative_cases),
+    color = "black",  size = 0.1
+  ) +scale_fill_continuous(type = "viridis")
+
+cumu_death_plt <- ggplot() +
+  geom_map(
+    data = world_cumu_covid, map = world_cumu_covid,
+    aes(long, lat, map_id = region, fill=Cumulative_deaths),
+    color = "black",  size = 0.1
+  ) +scale_fill_continuous(type = "viridis")
+
+```
+
+
+
+```{r}
+# demographics
+world <- map_data("world")
+pop_density <- read_csv("population_density.csv")
+gdp <- read_csv("API_NY.GDP.PCAP.CD_DS2_en_csv_v2_3632113.csv")
+gdp <- gdp[,c("Country Name","Country Code","2020")]
+names(gdp)[names(gdp) == "2020"] <- "GDP.PCAP"
+pop_density <- pop_density[complete.cases(pop_density),]
+gdp <- gdp[complete.cases(gdp),]
+
+names(pop_density)[names(pop_density) == "country"] <- "Country"
+names(gdp)[names(gdp) == "Country Name"] <- "Country"
+gdp <- gdp %>% mutate(Country=case_when(Country == "Russian Federation"  ~ "Russia",
+                           Country == "Hong Kong SAR, China" ~ "Hong Kong",
+                           Country == "Korea, Rep." ~ "South Korea",
+                           TRUE~Country))
+# merge
+demogra <- merge(gdp, pop_density, by="Country")
+demogra <- demogra %>% mutate(Country=case_when(Country == "United States"  ~ "USA",TRUE~Country))
+
+demogra <-world%>%left_join(demogra, by=c("region"="Country"))
+colnames(demogra)[8] <-"GDP_per_capita"
+colnames(demogra)[11] <-"Population_density_km2"
+colnames(demogra)[12] <-"Population2022"
+```
+
+
+
+```{r}
+par(mfrow=c(1,2))
+gdp_plt <- ggplot() +
+  geom_map(
+    data = demogra, map = demogra,
+    aes(long, lat, map_id = region,fill=GDP_per_capita),
+    color = "black",  size = 0.1
+  ) +scale_fill_gradient2(
+  low = munsell::mnsl("5B 7/8"),
+  high = munsell::mnsl("5Y 7/8"),
+  mid = munsell::mnsl("N 7/0"),
+  midpoint = .02
+) 
+
+
+pop_plt <- ggplot() +
+  geom_map(
+    data =demogra , map = demogra,
+    aes(long, lat, map_id = region, fill=Population2022),
+    color = "black",  size = 0.1) +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(7))
+
+
+grid.arrange(cumu_covid_plt, cumu_death_plt,gdp_plt,pop_plt,  ncol=2)
+```
+From the above figures, it can be seen that
+
+* Three countries including the United States, Brazil, and India are the top-3 in descending order regarding the cumulative COVID-19 cases and cumulative deaths till March 11, 2022.
+
+*  Countries including the United States, Canada, and Australia have higher in GPD per capita than other countries with large territories, such as Brazil and India.
+
+* India and China have the largest population compared with other countries, while the United States and Brazil have similar population levels.
+
+
+
+Given that China consistently consistently implemented a strict COVID-19 testing policy, which is significantly different from the COVID-19 testing policy from others and would cause severe imbalance in the data set. Therefore, three countries including the United States, Brazil, and India will be selected as the candidate countries for analysis in this report. In addition, tiven the significant difference in populations across different countries, the new deaths should be averaged by population to obtain the new death per capita.
+
+```{r}
+cvm <- subset(covid_policy, Country%in%c("United States", "Brazil","India"))
+
+cvm$Date <- ymd(cvm$Day)
+cvm$Year <- year(cvm$Date)
+cvm$Week <- week(cvm$Date)
+cvm$Covid_date <- seq(1, dim(cvm)[1], 1)
+keeps = c("New_cases", "Cumulative_cases","New_deaths","Cumulative_deaths", 
+          "testing_policy", "Covid_date","Country", "Day")
+
+cvm = cvm[keeps]
+names(cvm)[5] <-"policy"
+
+cvm$policy <- as.factor(cvm$policy)
+cvm$Country <- as.factor(cvm$Country)
+
+```
+
+
+```{r}
+# New deaths per capita
+
+cvm <- merge(cvm,pop_density, by="Country")
+# weekly new cases per 1000 persons
+cvm$New.deaths <- cvm$New_deaths/cvm$pop2022*1000
+
+cvm$Cumu_death_rate <- cvm$Cumulative_deaths/cvm$Cumulative_cases
+cvm$Cumu_death_rate[is.na(cvm$Cumu_death_rate)] <- 0.0
+
+```
+
+```{r}
+cvm$Date <- ymd(cvm$Day)
+cvm$Year <- year(cvm$Date)
+cvm$Week <- week(cvm$Date)
+
+cvm$Year_week <- paste(as.character(cvm$Year),"_", as.character(cvm$Week))
+weekly_cvm <- aggregate(cbind(New_deaths,New_cases,Cumulative_cases, Cumulative_deaths, policy, New.deaths)~Year_week+Country,data=cvm,FUN=mean)
+
+weekly_cvm <- subset(weekly_cvm,round(policy)-policy == 0)
+weekly_cvm$policy <- as.factor(weekly_cvm$policy)
+
+```
+
+## Univariate Analysis
+
+### Outlier Test
+
+The Rosner test was first conducted to eliminate possible outliers in the data set. And the result shows that there is is an obvious outlier in row 58 that needs to be eliminated. 
+
+
+```{r}
+# outlier test
+test <- rosnerTest(weekly_cvm$New.deaths, k = 3)
+kable(test$all.stats, format = 'html')
+
+cvm <- cvm[-58,]
+```
+
+### Statistics of COVID-19 Testing Policy and Countries
+
+After eliminating the outlier, the univariate descriptive statistics of mean, standard deviations, missing values and quantiles for the selected variables are summarized below. It is worth noticing that the $New.deaths$ in the folloing contents represents the daily new death cases per 1, 000 population, and the $policy$ refers to the COVID-19 testing policy specifically.
+
+```{r}
+# data summary
+data_summary <- cvm
+
+table1(~ New.deaths + policy|Country, data=data_summary)
+```
+
+From the table, it can be seen that there are overall 2368 samples split into the 4 types of testing policy strictness levels. As for the mean value of daily new death cases per 1, 000 population, India performed better in average than the US, following by Brazil. As for COVID-19 testing policy, there are only 5 samples under strictness level 1, which is less than the sizes of other groups, which may indicate imbalance in sample sizes. There are no missingvalues for all these variables across three countries.
+
+### Transformation of Response Variable
+
+From the following histgram of the daily new death cases per 1, 000 population, we can see that its distribution is heavily right skewed. Therefore, the boxcox plot based based on the influential variables including country and policy, the transformation of the response variable is conducted. The transformed distribution of he weekly new cases is shown as the histgram as the following right figure.
+
+```{r}
+# y transformation
+cvm_fit <- cvm
+par(mfrow=c(1,3))
+hist(cvm_fit$New.deaths)
+boxcox(New.deaths+0.00001 ~ Country * policy, data=cvm)
+cvm_fit$New.deaths.t <- (cvm_fit$New.deaths)^0.3
+hist((cvm_fit$New.deaths.t))
+```
+## Multivariate Analysis
+
+For key variables, we draw boxplots for both the daily new death cases per 1, 000 population v.s. Countries and the daily new death cases per 1, 000 population v.s. COVID-19 testing policy. The following box plots show that India has the lowest daily new cases per 1,000 while Brazil and the US have the similar average daily new cases per 1,000. The boxplot for COVID-19 testing policies shows that there are lowest levels of new death per 1, 000  when the strictness level is 2, while the appearance of strictness of 1 corresponds to the highest new-death levels and largest variance.
+
+```{r}
+# side effect
+plotside1 <- ggplot(cvm_fit, aes(x=Country, y=(New.deaths)^0.3, fill=Country, group=Country)) + geom_boxplot()+ ylab("Transformed New Death per Capita")
+
+plotside2 <- ggplot(cvm_fit, aes(x=policy, y=(New.deaths)^0.3, fill=policy, group=policy)) + geom_boxplot()+ ylab("Transformed New Death per Capita")
+
+grid.arrange(plotside1, plotside2, ncol=2)
+```
+
+# Inferential analysis 
+
+## Two-way ANOVA Model
+
+The general forms of the full model and the reduced model for the two-way ANOVA model to examine the regional effects and the COVID-19 testing policies on the daily new deaths per 1, 000 population are as follows:
+
+* Full model:
+
+$$
+Y_{ijk} = \mu_{..} + \alpha_{i} + \beta_{j} + (\alpha \beta)_{ij}+ \epsilon_{ijk}, i = 1,...,a; j = 1,...,b; k = 1,...,n
+$$
+
+
+* Reduced model:
+
+$$
+Y_{ijk} = \mu_{..} + \alpha_{i} + \beta_{j} + \epsilon_{ijk},i = 1,...,a,j = 1,...,b,k = 1,...,n
+$$
+
+Assumptions
+
+  - All samples are randomized and error terms ${\epsilon }$ are $i.i.d, N(0, \sigma ^2)$
+  
+Notations
+
+ - The index $i$ represents the $i^{th}$ country: Brazil($i=1$), India ($i=2$), the United States ($i=3$).
+ - the index $j$ represents the levels of the strictness of COVID-19 testing policy.
+ - $Y_{ijk}$ represents the object associated with specified $i^{th}$ country, $j^{th}$ strictness level of COVID-19 testing policy and $k^{th}$ observation/treatment in cell.
+ - $\mu_{ij}$ represents the effect for specified country and trictness level of COVID-19 testing policy.
+ - $\epsilon_{ijk}$ represents the random error term that is unobserved in experiment. 
+ 
+Constraints
+ - $\sum \alpha_i = \sum \beta_j = 0$
+ - $\sum_{i=1}^a (\alpha \beta)_{ij} = \sum_{j=1}^a (\alpha \beta)_{ij} = 0$
+
+## Model Selection
+
+To justify whether there is interaction effects so as to make model selections, the two models were fit into the ANOVA to check the significance level of the interaction term. 
+
+```{r}
+cvm_fit <- cvm
+cvm_fit$New.deaths.t <- (cvm_fit$New.deaths)^0.3
+fit <- aov(New.deaths.t ~ Country * policy, data=cvm_fit)
+reduced_model <- aov(New.deaths.t ~ Country + policy, data=cvm_fit)
+anova(reduced_model,fit)
+
+interaction2wt(New.deaths.t ~ Country * policy, data=cvm_fit)
+
+```
+From the result, it can be seen that the interaction effects is significant and the full model with all unknown parameters should be chosen.
+
+## Model Diagnotics
+
+
+```{r}
+par(mfrow=c(1,3))
+plot(fit, which = 1, col ='black')
+plot(fit, which = 2, col ='black')
+hist(fit$residuals)
+```
+From the above diagnostic plots, it can be observed that the variance of the residuals are generally randomly distributed around zero, but the variance is not equal. For the Q-Q plot, it shows that the result is heavy-tailed.
+Nevertheless, the histgram of residuals are close to normal distribution, which may indicate the reasonability of our model.
+
+```{r}
+summary(fit)
+
+```
+
+**Explorations**
+
+- The extremely small P-values for both of the countries and COVID-19 testing policies show that they are significant factors. Hence, it can be concluded that there is difference in daily new deaths per 1, 000 population  under different COVID-19 testing policy strictness levels across different countries, which means that any changes in these two variables would statistically affect the mean values of  daily new deaths per 1, 000 population.
+
+- $SSTO = 754.4$ with $df = 2367$
+- $SSE = 324.9$ with $df = 2356$
+- $SSTR = 429.5$ with $df = 11$
+- $MSTO = \frac{SSTO}{df(SSTO)}= 0.32$
+- $MSE = \frac{SSE}{df(SSE)}= 0.14$  
+- $MSTR = \frac{SSTR}{df(SSTR)}= 39.04$
+
+
+In the context of ANOVA-like tests, it is common to report ANOVA-like effect sizes. Unlike standardized parameters, these effect sizes represent the amount of variance explained by each of the model’s terms, where each term can be represented by 1 or more parameters. From the $\eta^2$, it can be seen that the country variable explains the largest amount of variance.
+
+```{r}
+etasq(fit)
+```
+
+### Pairwise Comparison
+
+The interaction test shows that there is significant different between each different combinations of country and COVID-19 policy.
+
+```{r}
+testInteractions(fit, fixed="policy", across="Country", adjustment="none")
+```
+
+
+rom the 95% family-wise confidence level plot as follows, it can be seen that the P-value for the pairwise comparison between the country and the COVID-19 policy is less than the significance level 0.05, which indicates that we can reject the null hypothesis and conclude that there is significant difference for the daily new deaths per 1, 000 population between different countries and the COVID-19 policy strictness levels. 
+
+  
+```{r}
+aovCRF <- aov(New.deaths.t ~ Country * policy, data=cvm_fit)
+tk <- TukeyHSD(aovCRF, which="policy")
+par(mar=c(5,15,3,3))
+plot(tk, las=1 , col="brown",cex.axis=0.8)
+
+```
+
+# Causal Inference
+
+## Propensity Score Weighting
+
+Propensity score weighting is used to examine the effect of a treatment by accounting the covariates receiving the treatment(Rosebaum and Rubin 1983). The variance in the outcome between treated and untreated grouped may depend on an external variable that predicts the treatment rather than the treatment itself. In the observational study, it requires the propensity score weighting techniques to identify and reduce the bias led by the non-random assignment of treatment. In this study, the mobility data is added  as an instrumental variables to the treatment for causal analysis.
+
+```{r}
+extra_x <- read_csv("changes-visitors-covid.csv")
+names(extra_x)[1] <-"Country"
+names(extra_x)[dim(extra_x)[2]] <- "extra_x"
+cvm_extra <- merge(cvm, extra_x, by="Country")
+```
+
+
+
+```{r}
+cvm_extra$New.x <- cvm_extra$extra_x/cvm_extra$pop2022*1000
+test.policy <- lm(New.x ~ policy, data = cvm_extra)
+summary(test.policy)
+```
+
+
+```{r}
+cvm_extra$New.deaths.t <- (cvm_extra$New.deaths)^0.3
+test.extrax<- lm(New.deaths.t ~ New.x, data = cvm_extra)
+summary(test.extrax)
+```
+
+
+
+The results of the above models show that the instrumental variable is statistically important to the outcome, which indicates the imbalance in the selection bias. Besides, the response variable of the previously obtained full model is also significantly dependent on the COVID-19 testing strictness levels. It indicates that we should conduct the further propensity score method to try to reduce it. 
+
+In this report, we try to use logistic regression to estimate propensity score.
+
+```{r}
+ps <- glm(policy ~ New.x + Country, data = cvm_extra, family = binomial())
+summary(ps)
+```
+
+
+
+It turns out that the covariates are not associated with the lockdown order at 95% significant level, which indicates that further exploration is needed.
+
+# Discussion 
+
+In this report, the effects of different countries and different strictness levels of COVID-19 testing policies on the daily new death cases per 1, 000 population by conducting a two-way ANOVA model with interactive effects. By the inferential analysis, we can statistically conclude that there are significant differences of difference strictness levels of COVID-19 testing policies across different countries, with India and  strictness level 2 corresponds having the lowest daily new cases per 1, 000 population.
+
+# References
+
+[1] Tamargo, Javier A., Haley R. Martin, Janet Diaz-Martinez, Mary Jo Trepka, Ivan Delgado-Enciso, Angelique Johnson, Raul N. Mandler, Suzanne Siminski, Pamina M. Gorback, and Marianna K. Baum. "COVID-19 Testing and the Impact of the Pandemic on the Miami Adult Studies on HIV Cohort." Journal of acquired immune deficiency syndromes (1999) 87, no. 4 (2021): 1016.
+
+[2] https://www.statnews.com/2022/01/05/study-raises-doubts-about-rapid-covid-tests-reliability-in-early-days-after-infection/
+
+[3] https://ourworldindata.org/covid-testing-contact-tracing
+
+
+# Acknowledgement {-}
+
+I have discussed this project with your teammates.
+
+# Reference {-}
+
+Imbens, G., & Rubin, D. (2015). Stratified Randomized Experiments. In Causal Inference for Statistics, Social, and Biomedical Sciences: An Introduction (pp. 187-218). Cambridge: Cambridge University Press. doi:10.1017/CBO9781139025751.010
+
+# Session info {-}
+
+
+
+
