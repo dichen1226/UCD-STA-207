@@ -1,0 +1,723 @@
+---
+title: "The Impact of Mask Orders on COVID-19 Weekly New Cases across Countries"
+author: "Di Chen, 918355698"
+date: "3/14/2022"
+output:
+  bookdown::html_document2:
+    df_print: paged
+    number_sections: yes
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H',echo = FALSE, warning = FALSE, message = FALSE, fig.align = 'center')
+```
+
+```{r}
+library(tidyverse)
+library(ggpubr)
+library(xts)
+library(lubridate)
+library(knitr)
+library(lme4)
+library(gplots)
+library(EnvStats)
+library(table1)
+library(car)
+library(dplyr)
+```
+
+```{r}
+# datasets
+covid <- read_csv("https://covid19.who.int/WHO-COVID-19-global-data.csv")
+mask <- read_csv("data/face-covering-policies-covid.csv")
+```
+
+# Abstract
+
+The coronavirus has made tremendous threats on people's health and negatively impacted our daily life. To face with the challenge, countries have implemented various policies, where mask policy is one of them. The project aims at investigating the impact of mask orders on the COVID-19 weekly new cases across countries. The analysis starts with a descriptive analysis, where the WHO COVID-19 dataset is explored and the scope of work is defined considering socio-demographic factors of the countries. Descriptive analysis is included, which provides statistics on selected variables and univariate and multivariate insights. Secondly, the inferential analysis is carried out. A two-way ANOVA model is selected and fitted, followed by hypothesis testing of coefficients and pairwise comparison of different mask orders. After that, model diagnostics and testing for equal variance assumption are conducted in the sensitivity analysis. At last, inferential analysis presents a potential covariate that may impact the outcome. It is found that mask orders,  countries and their interaction effect have impact on the COVID-19 weekly new cases. In terms of mask policies, countries tend to respond to the pandemic after the situation get worse, rather than taking actions in advance.
+
+
+# Introduction
+
+## Background
+
+The global number of cases of SARS-CoV-2 (severe acute respiratory syndrome coronavirus-2) has risen exponentially since 2020. It has become clear that coronavirus poses a particular threat to vulnerable individuals and causes numerous deaths, drawing much attention worldwide and inspiring various executive orders to face with the challenge. Among the executive orders, the general public's recommendations and practices surrounding the usage of face masks have varied widely and are rapidly evolving. The mask orders also vary across countries and over time. For instance, the usage of masks by the public in public places has been contentious in the United States, yet the US Centers for Disease Control and Prevention (CDC) has recommended that the public use cloth masks as of April 3, 2020. In several Asian nations, wearing a mask in public is significantly more common (Eikenberry et al., 2020).
+
+## Data description
+
+**The WHO COVID-19 data**
+
+The [WHO COVID-19 data](https://www.who.int/emergencies/diseases/novel-coronavirus-2019/situation-reports) offers an overview of the global, regional and country-level COVID-19 cases and deaths. The data contains the most up-to-date COVID information among countries, and the cumulative and new cases and deaths implies how the situation of the pandemic changes. Till the latest data by March 12th, 2022, there are a total of 189,420 records and 8 variables. The variables include:
+
+ - `Date_reported`: date of the observation reported.
+ - `Country_code`: short alphabetic or numeric geographical codes developed to represent countries and dependent areas.
+ - `Country`: the country of the observation
+ - `WHO_region`: the World Health Organization (WHO) divides the world into six WHO regions, for the purposes of reporting, analysis and administration.
+ - `New_cases`: the increasing number of infectious cases in certain country in reported date.
+ - `Cumulative_cases`: the cumulative number of infectious cases in certain country in reported date.
+ - `New_deaths`: the increasing number of death cases in certain country in reported date.
+ - `Cumulative_deaths`: the cumulative number of death cases in certain country in reported date.
+
+**The facial coverings data**
+
+The [Facial Coverings](https://ourworldindata.org/covid-face-coverings) data indicates the use of face coverings outside-of-the-home. Countries are grouped into five categories: No policy; Recommended; Required in some specified shared/public spaces outside the home with other people present, or some situations when social distancing not possible; Required in all shared/public spaces outside the home with other people present or all situations when social distancing not possible; Required outside the home at all times regardless of location or presence of other people. The dataset has a total of 145,212 records and 4 variables, including Entity (i.e., country), Code (i.e., country code), Day (i.e., date reported), and facial coverings. 
+
+**The population data**
+
+The [population data](https://worldpopulationreview.com/country-rankings/countries-by-density) provides information on the population density, population, and area by 2022. There are a total of 232 records and 6 variables, including rank, country, density, density in $mile^2$, population, and area. 
+
+**The GDP data**
+
+The [GDP per capita](https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?most_recent_value_desc=true) data provides the GDP per capita information across countries. There are totally 242 records and 3 variables, which includes country, country code, and GDP per capita. 
+
+**The Stringency Index data**
+
+The Oxford Coronavirus Government Response Tracker (OxCGRT) project computes a [Stringency Index](https://ourworldindata.org/covid-stringency-index), which is a composite measure of nine of the response metrics (Hale et al., 2021). There are 142,497 entries and 4 variables, including country, country code, day, and stringency index. A higher stringency score indicates a stricter response (i.e. 100 = strictest response).
+
+**The Google Mobility Trends data**
+
+The [Google Mobility Trends](https://ourworldindata.org/covid-google-mobility-trends) data records the way that the pandemic has changed the movement of people around the world. There are 98,809 entries and 9 variables. It records how the number of travelers to places of interest has changed compared to baseline days (the median value for the 5‑week period from January 3 to February 6, 2020). Places such as grocery markets, food warehouses, farmers markets, specialty food shops, drug stores, and pharmacies are included in the dataset.
+
+## Questions of interest
+
+Given the countrywide recommendations of mask usage, and the uncertainty surrounding the possible community-wide impact of mass face masks, the project aims to evaluate the impact of mask orders on new COVID-19 cases across countries. Specifically, the questions of interest in the project includes:
+
+* Are there any differences in the COVID-19 weekly new cases across different strictness levels of mask orders?
+
+* Is there an association between different countries and the COVID-19 weekly new cases?
+
+* Which level of mask policy is related to the lowest COVID-19 weekly new cases?
+
+* Does the interaction of country and mask orders have impact on the COVID-19 weekly new cases?
+
+
+# Desrciptive analysis
+
+## Exploration of the WHO COVID-19 data
+
+To get an idea on the daily new cases across countries, Figure \@ref(fig:plot0) is visualized on date February 13th, 2022, as an example. It can be seen that the United States, France, India, Netherlands, Brazil, Australia, etc., have relatively larger new cases at the selected date. The grey regions in the map result from the lack of records in the dataset.
+
+```{r plot0, fig.align='center', fig.cap="New COVID-19 cases across countries on 02/13/2022"}
+covid <- covid %>% mutate(Country=case_when(Country == "The United Kingdom"  ~ "UK",
+                           Country == "United States of America" ~ "USA",
+                           Country == "Bolivia (Plurinational State of)" ~ "Bolivia",
+                           Country == "Syrian Arab Republic"  ~ "Syria",
+                           Country == "Saint Vincent and the Grenadines" ~ "Saint Vincent",
+                           Country == "Congo" ~ "Republic of Congo",
+                           Country == "North Macedonia"   ~  "Macedonia",
+                           Country == "Lao People's Democratic Republic"  ~  "Laos",
+                           Country == "Iran (Islamic Republic of)"  ~  "Iran",
+                           Country == "Russian Federation"   ~  "Russia",
+                           Country == "Democratic People's Republic of Korea" ~  "North Korea",
+                           Country == "Republic of Korea"  ~  "South Korea",
+                           Country == "Congo" ~  "Republic of Congo",
+                           Country == "Venezuela (Bolivarian Republic of)"  ~  "Venezuela",
+                           Country == "United Republic of Tanzania"  ~  "Tanzania",
+                           Country == "Viet Nam" ~"Vietnam",
+                           Country == "United States Virgin Islands"~"Virgin Islands",
+                           Country == "Côte d’Ivoire"~ "Ivory Coast",
+                           TRUE~Country))
+
+covid_213 <- covid%>%filter(Date_reported =="2022-02-13")
+world <- map_data("world")
+
+# get top new cases
+covid.topnew <- covid %>% group_by(Country_code) %>% summarise(max = max(New_cases, na.rm=TRUE)) %>% arrange(desc(max))
+# head(covid.topnew)
+
+world_covid <- world%>%left_join(covid_213, by=c("region"="Country"))
+ggplot() +
+  geom_map(
+    data = world_covid, map = world_covid,
+    aes(long, lat, map_id = region,fill=New_cases),
+    color = "black",  size = 0.1
+  ) +scale_fill_continuous(type = "viridis")
+```
+
+Exploratory analysis on the pandemic is conducted as shown in Figure \@ref(fig:plot1) and Figure \@ref(fig:plot2). Top 5 countries whose cumulative cases are the highest are visualized, including the United States, Brazil, France, India, the United Kingdom. From Figure \@ref(fig:plot1), the covid cases and deaths keep increasing over time and there appears a sharp growth in January 2022. Among the 5 countries, the cumulative cases and deaths of United States are the highest.
+
+```{r}
+# cumulative mortality
+covid$mortality = covid$Cumulative_deaths/covid$Cumulative_cases*100 # %
+covid$mortality[is.na(covid$mortality)] = 0
+
+# group by country
+covid.group <- covid %>% group_by(Country_code)
+covid.max <- covid %>% group_by(Country_code) %>% summarise(max = max(Cumulative_cases, na.rm=TRUE)) %>% arrange(desc(max))
+# get top 5 max cumulative cases countries
+country_codes <- covid.max$Country_code[1:5]
+covid.top5 <-  covid %>% filter(Country_code %in% country_codes)
+```
+
+```{r plot1, fig.align='center', fig.cap="Top 5 countries' cumulative cases and deaths over time"}
+# plot
+fig1 <- ggplot(data = covid.top5, aes(x = Date_reported, y = Cumulative_cases, group = Country, color = Country)) + 
+  geom_point() + 
+  geom_line() + 
+  xlab("Reported Date")+ ylab("Cumulative Cases")+
+  ggtitle("Cumulative Cases")+
+  theme(legend.position = "bottom")
+fig2 <- ggplot(data = covid.top5, aes(x = Date_reported, y = Cumulative_deaths, group = Country, color = Country)) + 
+  geom_point() + 
+  geom_line() + 
+  xlab("Reported Date")+ ylab("Cumulative Deaths")+
+  ggtitle("Cumulative Deaths")+
+  theme(legend.position = "none")
+ggarrange(fig1, fig2, ncol = 2, nrow = 1,common.legend=TRUE,legend="bottom")
+```
+
+In addition, Figure \@ref(fig:plot2) indicates a high case mortality rate at the beginning of the pandemic, then it gradually decreases and remains relative low at present. Besides, although the cumulative cases and deaths in the United States are the highest, its case morality rate is lower than India and the United Kingdom. Overall, it can be found that despite the growing cases, the virus appears to be less harmful as before.
+
+```{r plot2, fig.align='center', fig.cap="Top 5 countries' cumulative case mortality rates over time",out.width = '60%'}
+fig3 <- ggplot(data = covid.top5, aes(x = Date_reported, y = mortality, group = Country, color = Country)) + 
+  geom_point() + 
+  geom_line() + 
+  xlab("Reported Date")+ ylab("Cumulative Mortality Rate (%)")+
+  ggtitle("Cumulative Mortality Rate")+
+  theme(legend.position = "bottom")
+fig3
+```
+
+The above plots shows a growing tendency of the covid cases and a decrease of case mortality rate. The decline of mortality rate may be caused from different factors besides the evolution of the virus itself. For instance, the policy of wearing masks or facial coverings may play an essential role in slowing down the spread of the coronavirus and reducing death rates. As such, the questions of interest is to be investigated in the following sections.
+
+## Scope of work
+
+To avoid the impact of demographic factors, such as the level of development and population density, on the spread of the coronavirus across countries, we select the countries that have similar GDP per capita and population density. From Figure \@ref(fig:plot1), the United States has been identified as the most severe country in the pandemic, which is therefore taken as the basis country. Five other countries that have similar GDP and population density are selected, including New Zealand, Finland, Sweden, Norway and Ireland. The statistics of GDP and population is provided in the table below.
+
+```{r}
+popu_density <- read_csv("data/population_density.csv")
+gdp <- read_csv("data/API_NY.GDP.PCAP.CD_DS2_en_csv_v2_3632113.csv")
+gdp <- gdp[,c("Country Name","Country Code","2020")]
+names(gdp)[names(gdp) == "2020"] <- "GDP.PCAP"
+popu_density <- popu_density[complete.cases(popu_density),]
+gdp <- gdp[complete.cases(gdp),]
+
+# intersect(unique(popu_density$country), unique(gdp$`Country Name`))
+# setdiff(unique(gdp$`Country Name`),unique(popu_density$country))
+names(popu_density)[names(popu_density) == "country"] <- "Country"
+names(gdp)[names(gdp) == "Country Name"] <- "Country"
+gdp <- gdp %>% mutate(Country=case_when(Country == "Russian Federation"  ~ "Russia",
+                           Country == "Hong Kong SAR, China" ~ "Hong Kong",
+                           Country == "Korea, Rep." ~ "South Korea",
+                           TRUE~Country))
+# merge
+demogra <- merge(gdp, popu_density, by="Country")
+# order by gdp
+demogra <- demogra[order(demogra$GDP.PCAP),]
+# select
+# "United States", "Norway","Ireland","Sweden","Finland","New Zealand"
+demogra.new <- demogra[demogra$Country %in% c("United States", "Norway","Ireland","Sweden","Finland","New Zealand"),]
+
+# table
+demogra.new.tab <- demogra.new[,c("Country","GDP.PCAP","density","pop2022")]
+rownames(demogra.new.tab) <- NULL # Reset row names
+colnames(demogra.new.tab) <- c("Country","GDP (per capita)",paste("Population density (km2)"),"Population")
+kable(demogra.new.tab)
+```
+
+To relieve the impact of population on the weekly new cases, the response variable, the new cases, is defined as $Weekly \ new \ cases \ per \ 1,000 \ person = Weekly \ new \ cases / Population \times 1000$. The data is averaged on a weekly basis. The selection of variables is as follows:
+
+* Response variable: *weekly new cases per 1000 persons*.
+
+* Dependent variables: *country* and *mask order*. The *country* variable includes 6 countries, the United States, New Zealand, Finland, Sweden, Norway and Ireland. And the *mask order* is grouped into 5 categories: 
+
+(1) No policy (*mask*=0); 
+
+(2) Recommended (*mask*=1); 
+
+(3) Required in some specified shared/public spaces outside the home with other people present, or some situations when social distancing not possible (*mask*=2); 
+
+(4) Required in all shared/public spaces outside the home with other people present or all situations when social distancing not possible (*mask*=3); 
+
+(5) Required outside the home at all times regardless of location or presence of other people (*mask*=4).
+
+```{r}
+# get weekly data
+covid <- read_csv("https://covid19.who.int/WHO-COVID-19-global-data.csv")
+covid <- covid %>% mutate(Country=case_when(Country == "United States of America"  ~ "United States", TRUE~Country))
+names(mask)[1] <-"Country"
+names(covid)[1] <-"Day"
+covid_mask <- merge(covid, mask,by=c("Day","Country"))
+covid_mask$Date <- ymd(covid_mask$Day)
+covid_mask$Year <- year(covid_mask$Date)
+covid_mask$Week <- week(covid_mask$Date)
+
+covid_mask$Year_week <- paste(as.character(covid_mask$Year),"_", as.character(covid_mask$Week))
+weekly_covid_mask <- aggregate(cbind(New_deaths,New_cases,Cumulative_cases, Cumulative_deaths, facial_coverings)~Year_week+Country,data=covid_mask,FUN=mean)
+weekly_covid_mask <- subset(weekly_covid_mask,round(facial_coverings)-facial_coverings == 0)
+
+weekly_covid_mask$Weekly_mortality_rate <- weekly_covid_mask$New_deaths/weekly_covid_mask$New_cases
+weekly_covid_mask$Cumu_mortality_rate <- weekly_covid_mask$Cumulative_deaths/weekly_covid_mask$Cumulative_cases
+weekly_covid_mask$Weekly_mortality_rate[is.na(weekly_covid_mask$Weekly_mortality_rate)] <- 0.0
+weekly_covid_mask$Cumu_mortality_rate[is.na(weekly_covid_mask$Cumu_mortality_rate)] <- 0.0
+```
+
+```{r}
+# merge demogra.new & weekly_covid_mask
+data.covid <- merge(demogra.new, weekly_covid_mask, by="Country")
+# weekly new cases per 1000 persons
+data.covid$New_cases_rate <- data.covid$New_cases/data.covid$pop2022*1000
+data.covid$facial_coverings <- as.factor(data.covid$facial_coverings)
+
+# rename variable
+names(data.covid)[names(data.covid) == "facial_coverings"] <- "mask"
+
+# backup
+data.covid_bk <- data.covid
+```
+
+## Exploratory data analysis
+
+**Distribution of weekly new cases**
+
+The distribution of the weekly new cases is plotted to see whether the normality assumption is satisfied. The distribution plot is shown in the Figure \@ref(fig:plot3) below. 
+
+```{r plot3, fig.align='center', fig.cap="Distribution of COVID-19 weekly new cases",out.width = '60%'}
+# before log transformation
+hist(data.covid_bk$New_cases_rate, main = "Distribution of weekly new cases per 1,000 person", xlab = " Weekly new cases (per 1,000 person)")
+```
+
+It can be seen that the distribution is heavily right-skewed, meaning that the normality assumption does not hold. A log transformation is conducted so that the response variable closely resembles a normal distribution. During the transformation, to alleviate the infinite values caused by the zero values in the original data, we define the transformation as $Y'=log(Y+1)$, where $Y$ is the weekly new cases per 1,000 person. The distribution plot after the transformation is shown in Figure \@ref(fig:plot4). The plot is approximately normally distributed.
+
+```{r plot4, fig.align='center', fig.cap="Distribution of COVID-19 weekly new cases after log-transformation",out.width = '60%'}
+data.covid <- data.covid_bk
+
+# log
+data.covid$New_cases_rate <- log(data.covid$New_cases_rate + 1)
+
+hist(data.covid$New_cases_rate, main = "Distribution of weekly new cases per 1,000 person", xlab = "log (weekly new cases (per 1,000 person))")
+```
+
+**Descriptive statistics**
+
+To facilitate with the summary, students’ performance needs to be aggregated. The mean value is one of the most popular choices for aggregation. However, outliers are necessary to be examined before taking the mean, as a large amount of outliers may makes the mean value skewed. Rosner’s test for outliers is used for this purpose. The advantage of Rosner’s test is that it can detect several outliers at once, and it is created to eliminate the problem of masking, which occurs when one outlier with a similar value to another outlier goes unnoticed. According to the output above, there is no outlier detected. In this case, aggregating by mean value appears to be appropriate.
+
+```{r}
+# test for outliers
+test <- rosnerTest(data.covid$New_cases_rate, k = 3)
+kable(test$all.stats)
+```
+
+* Univariate descriptive statistics
+
+The mean, standard deviations, quantiles and missing values of the selected variables are presented in the table below. There are a total of 665 samples, where 112 from Finland, 114 from Ireland, 112 from New Zealand, 111 from Norway, 109 from Sweden, and 107 from United States. It shows that the sample sizes across countries are approximately the same, indicating that the balanced design is appropriate. In terms of mask orders, it can be seen that the policy differs across countries. 
+
+```{r}
+# Univariate descriptive statistics
+data_summary <- data.covid_bk
+label(data_summary$New_cases_rate) <- "Weekly new cases (per 1,000) person"
+label(data_summary$mask) <- "Mask order"
+table1(~ New_cases_rate + mask| Country, data=data_summary)
+```
+
+<br />
+
+* Multivariate descriptive statistics
+
+Multivariate descriptive statistics with country and mask orders are conducted and presented in the Figure \@ref(fig:plot5) and Figure \@ref(fig:plot6) below. For the weekly new cases plot across countries, New Zealand has the lowest number of new cases compared with the others. By contrast, the United States has the highest number of weekly new cases. In terms of the plot across different mask orders, it is interesting to find that when there is no mask order, the number of new cases is the smallest. A possible reason is that at the beginning of the pandemic, the weekly new cases are relatively low and mask orders have not been proposed yet. The median number of new cases under different mask policies is close, while for policy 2 (i.e., mask required in some specified public spaces outside the home with other people present), the variance is relatively larger.
+
+```{r plot5, fig.align='center', fig.cap="Box-plot of weekly new cases across countries",out.width = '60%'}
+fig4 <- ggplot(data.covid, aes(x=Country, y=New_cases_rate, fill=Country)) + geom_boxplot()+ ylab("Log(Weekly-new-cases per 1,000 person)")+ggtitle("Weekly new cases across countries")
+#+theme(axis.text.x = element_text(angle = 45,vjust = 1, hjust=1))
+fig4
+```
+
+```{r plot6, fig.align='center', fig.cap="Box-plot of weekly new cases across mask orders",out.width = '60%'}
+fig5 <- ggplot(data.covid , aes(x=mask, y=New_cases_rate, fill=mask)) + geom_boxplot()+ ylab("Log(Weekly-new-cases per 1,000 person)")+ggtitle("Weekly new cases across mask orders")
+fig5
+```
+
+# Inferential Analysis
+
+## Model Construction
+
+**Two-way ANOVA model**
+
+$$Y_{ijk} = \mu_{..} + \alpha_{i} + \beta_{j} + (\alpha \beta)_{ij}+ \epsilon_{ijk},$$ 
+where $i = 1,...,a$; $j = 1,...,b$; $k = 1,...,n$
+
+**Assumptions**
+ 
+ - All the subjects are randomly sampled. i.e. $Y_{ijk}$ ~ $N( \mu_{i,j}, \sigma^2)$.
+ - Error terms are independent.
+ - Error terms have constant variance.
+ - Error terms are normally distributed.
+ 
+**Notations**
+
+ - $\alpha_i$ represents the fixed effect of *country*, $i=1,2,...,6$.
+ - $\beta_j$ stands for the fixed effect of *mask order*, $j=1,2,...,5$.
+ - $Y_{ijk}$ means the $k$th observation of the response variable *weekly new cases per 1,000 person* in a specific group of the X variables (i.e., the $i$th country and $j$th mask order).
+ - $\epsilon_{ijk}$ captures any unexplained effects on *weekly new cases per 1,000 person*.
+ - The mean effect $\mu_{\cdot\cdot}$ is the mean weekly new cases per 1,000 person.
+
+**Constraints:**
+
+ - $\sum \alpha_i = \sum \beta_j = 0$.
+ - $\sum_{i=1}^a (\alpha \beta)_{ij} = \sum_{j=1}^a (\alpha \beta)_{ij} = 0$.
+
+
+## Model Selection
+
+Whether the interaction effect of country and mask order exists in the model should be examined. According to the interaction effect plot in Figure \@ref(fig:plot7) below, the lines in the interaction plot intersects, indicating that there is likely an interaction between them. 
+
+```{r plot7, fig.align='center', fig.cap="Interaction effect plot"}
+# interaction effect
+options(repr.plot.width=12, repr.plot.height=12)
+par(mfrow=c(2,2))
+# Main effect plot for ingredient 1
+plotmeans(New_cases_rate ~ Country,data=data.covid,xlab="Country",ylab="New cases",
+          main="Main effect, country",cex.lab=1.5) 
+# Main effect plot for ingredient 2
+plotmeans(New_cases_rate ~ mask,data=data.covid,xlab="Mask order",ylab="New cases",
+          main="Main effect, mask order",cex.lab=1.5) 
+#Interaction plot
+interaction.plot(data.covid$Country, data.covid$mask, data.covid$New_cases_rate
+                ,cex.lab=1.5,ylab="New cases",xlab='Country')
+par(mfrow=c(1,1))
+```
+
+For further validation, we use the F-test to conduct the hypothesis testing. The null and alternative hypothesis is
+$$
+H_0: (\alpha\beta)_{ij}=0 \  \forall i, j  \ \ {\rm v.s.} \ \ \ H_1:\  {\rm not \ all \ } (\alpha\beta)_{ij} \ {\rm are \ zero}.
+$$
+
+Full model: 
+$$
+Y_{ijk} =  \mu_{\cdot\cdot} + \alpha_i+\beta_j + (\alpha\beta)_{ij}+\epsilon_{ijk}, \ k=1,\ldots, n, j=1,\ldots, b, i=1,\ldots, a,
+$$
+
+Reduced model:
+$$
+Y_{ijk} =  \mu_{\cdot\cdot} + \alpha_i+\beta_j +\epsilon_{ijk}, \ k=1,\ldots, n, j=1,\ldots, b, i=1,\ldots, a,
+$$
+
+```{r}
+# anova <- aov(New_cases_rate ~ Country * mask, data = data.covid)
+# summary(anova)
+full <- lm(New_cases_rate ~ Country + mask + Country * mask, data = data.covid)
+reduced <- lm(New_cases_rate ~ Country + mask, data = data.covid)
+kable(anova(reduced,full))
+```
+
+According to the output table, the p-value of the interaction term *Country:mask* is approximately zero, meaning that the null hypothesis is rejected under significance level of 0.05. Therefore, there is a significant interaction effect between the country and mask orders. And the model with the interaction term is selected.
+
+## Model Fitting
+
+The final model is the two-way anova model with the interaction term. The output table is shown below. 
+
+```{r}
+anova.fit <- aov(full)
+anova_table <- anova(anova.fit)
+kable(anova_table)
+```
+
+## Hypothesis testing
+
+### Testing for coefficient
+
+**Testing for mask orders**
+
+$H_0: \beta_1 = \beta_2 = \beta_3 = \beta_4 = \beta_5 = 0$
+
+$H_1:$ not all $\beta$'s equal zero
+
+According to the ANOVA table of the model, the p-value of the variable *mask* is approximately zero. Under significance level of 0.05, we reject the null hypothesis and conclude that there exists differences in COVID-19 weekly new cases across mask orders. Moreover, a change in mask orders may statistically influence the weekly new cases.
+
+**Testing for countries**
+
+$H_0: \alpha_1 = \alpha_2 = \alpha_3 =\alpha_4 = \alpha_5 = \alpha_6=0$
+
+$H_1:$ not all $\alpha$'s equal zero
+
+Based on the ANOVA table, the p-value of the variable *Country* is nearly zero. Therefore, we reject the null hypothesis and conclude that there are differences in COVID-19 weekly new cases across countries. 
+
+### Pairwise comparison
+
+The previous hypothesis testing on coefficients has verified that different mask orders have impact on the COVID-19 weekly new cases. Thus, it is worth further investigating which mask order is associated with the lowest weekly new cases, providing insight to the public to face with the continuing pandemic. This can be realized through a pairwise comparison. 
+
+The Tukey’s range test is carried out, which helps to find the means that are significantly different from each other. Assume the significance level is 0.05. In pairwise comparison, there are 5 levels of mask orders to be compared, which generates a total of 10 pairs. As an example, the null and alternative hypothesis of each combination that includes the "No policy" mask order is states as follows. The other pairs have similar hypothesis and is omitted here.
+
+ - No policy  —  Mask recommended
+
+$H_0:$ The mean score between *No policy* and *Mask recommended* policy is equal
+
+$H_1:$ The mean score between *No policy* and *Mask recommended* policy is not equal
+
+ - No policy - Required in some public spaces
+ 
+$H_0:$ The mean score between *No policy* and *Required in some public spaces* policy is equal
+
+$H_1:$ The mean score between *No policy* and *Required in some public spaces* policy is not equal
+
+ - No policy - Required in all public spaces
+ 
+$H_0:$ The mean score between *No policy* and *Required in all public spaces* policy is equal
+
+$H_1:$ The mean score between *No policy* and *Required in all public spaces* policy is not equal
+ 
+ - No policy - Required at all times
+ 
+$H_0:$ The mean score between *No policy* and *Required at all times* policy is equal
+
+$H_1:$ The mean score between *No policy* and *Required at all times* policy is not equal
+
+```{r plot8, fig.align='center', fig.cap="Pairwise comparison of mask orders"}
+T.ci = TukeyHSD(anova.fit, which = "mask")
+table_tk <- T.ci$'mask'
+kable(table_tk)
+
+par(mar=c(5,15,2,2))
+plot(T.ci, las=1 , col="brown")
+```
+
+From the Tukey Honest significant differences table and Figure \@ref(fig:plot8), it is found that
+
+* The p-values of mask order combinations of ${2-1,3-1,4-1,4-2,4-3}$ are much higher than the significance level. So we fail to reject the null hypothesis and conclude that the score means between each of the combination are approximately the same.
+
+* The p-values of different strictness of mask orders compared with no mask policy (i.e.,${1-0,2-0,3-0,4-0}$) are approximately zero. So we reject the null hypothesis and conclude that the score means between each of the combination are different. It indicates that countries have began to implement mask orders to face with the increase of the COVID-19 new cases, regardless of the strictness of the mask orders.
+
+* The p-value of *Required in some public spaces* policy and *Required in all public spaces* policy is close to zero, so the null hypothesis is rejected. 
+
+From Figure \@ref(fig:plot6), the weekly new cases tends to increase with the strictness of mask orders. Such a phenomenon is because countries tend to strengthen the mask orders after the pandemic becomes worsen, instead of looking ahead and conducting mask orders in advance. In accordance to Figure \@ref(fig:plot6), the pairwise comparison indicates that to face with the increase of weekly new cases, more strict mask orders are carried out. Besides, compared with the *Required in some public spaces* policy, the *Required in all public spaces* policy stabilizes the weekly new cases. 
+
+
+# Sensitivity analysis
+
+## Model diagnostics
+
+According to the residuals v.s. fitted plot, the residuals are roughly randomly distributed around zero, indicating that the homoscedasticity assumption holds. The normal Q-Q plot shows a symmetrical but slightly heavy-tailed distribution. However, because the sample size is large enough (a total of 665 observations), the normality assumption still holds according to the big number theorem. The standardized residuals vs. fitted values plot also verifies the constant variance assumption, and no outliers are shown in the plot. At the same time, in the standardized residuals vs. leverage plot, all data points lay inside the dashed line, which indicates that there are no influential points that should be removed.
+
+```{r plot9, fig.align='center', fig.cap="Model diagnostics plots"}
+par(mfrow = c(2,2))
+plot(anova.fit)
+par(mfrow=c(1,1))
+```
+
+## Test for equal variance assumption
+
+The equal variance assumption can be tested using the Levene’s test. It is an inferential statistic that is used to determine if two or more groups' variances are equal. The null and alternative hypothesis are:
+
+$H_0$: $\sigma_1 = \sigma_2 = ... = \sigma_r$, where $r=ab=5 \times 6=30$
+
+$H_a$: not all $\sigma$'s are equal.
+
+
+```{r}
+LT <- leveneTest(New_cases_rate ~ Country*mask, data = data.covid)
+kable(LT)
+```
+
+The testing result is shown in the table above The p-value is approximately zero. Therefore, we reject the null hypothesis and conclude that the data has unequal variance. A possible explanation is that the sample size in each cell is limited. There are a total of 665 observations with 30 cells. At such, a small deviation from equal variance may lead to a significantly different testing result. In this case, more data should be collected to further verify the equal variance assumption in the future work.
+
+
+# Causal inference
+
+It is known that association does not necessarily imply causation. In real-life applications of statistics, it is essential to compare outcomes under different conditions for the same subjects. Causal inference aims at comparing potential outcomes under treatment with control for the same units. There are two assumptions (Imbens and Rubin, 2015) for causal interpretation:
+
+ * Stable unit treatment value assumption (SUTVA): A subject’s potential outcomes do not depend on the treatment of other subjects.
+ 
+ * Ignorability: The treatment assignment is independent of potential outcomes.
+
+In randomized experiments, randomization requires that the treatment groups are balanced on average. In observational study, however, the assumption often is not valid. As such, the propensity score weighting techniques are required to decrease the bias caused by the non-random assignment of treatment. Propensity score weighting is a statistical technique for estimating the effect of a treatment by taking into account the covariates that predict whether or not someone would receive the treatment (Rosebaum and Rubin, 1983). 
+
+In the project, the method of instrumental variables is implemented to estimate the causal relationship. Specifically, whether the instrumental variables are important for the group selection is investigated. If so, the bias needs to be reduced through a matching algorithm. Two addition dataset, the [government stringency index](https://ourworldindata.org/covid-stringency-index) data  and the [google mobility trends](https://ourworldindata.org/covid-google-mobility-trends) data are implemented to select appropriate instrumental variables. The reason of choosing them is that the stringency index and changes of mobilify are associated with both the treatment assignment and the potential outcomes. Moreover, to facilitate with this task, the mask orders is categorized to two levels: no policy (*mask order=0*), has policy (*mask order=1*).
+
+## Balance assessment
+
+```{r}
+mobility <- read_csv("data/changes-visitors-covid.csv")
+names(mobility)[1] <-"Country"
+
+# get weekly data
+mobility$Date <- ymd(mobility$Day)
+mobility$Year <- year(mobility$Date)
+mobility$Week <- week(mobility$Date)
+mobility$Year_week <- paste(as.character(mobility$Year),"_", as.character(mobility$Week))
+
+weekly_mobility <- aggregate(cbind(retail_and_recreation, grocery_and_pharmacy, residential, transit_stations, parks, workplaces) ~ Year_week + Country, data=mobility,FUN=mean)
+
+weekly_mobility[is.na(weekly_mobility)] <- 0
+
+# select
+weekly_mobility.new <- weekly_mobility[weekly_mobility$Country %in% c("United States", "Norway","Ireland","Sweden","Finland","New Zealand"),]
+
+# merge data
+data.covid2 <- merge(data.covid, weekly_mobility.new, by=c("Country","Year_week"))
+
+# mask order - 2 levels
+data.covid2$mask <- as.numeric(data.covid2$mask)
+data.covid2$mask[data.covid2$mask == 1] <- 0
+data.covid2$mask[data.covid2$mask == 5] <- 1
+data.covid2$mask[data.covid2$mask == 4] <- 1
+data.covid2$mask[data.covid2$mask == 3] <- 1
+data.covid2$mask[data.covid2$mask == 2] <- 1
+data.covid2$mask <- as.factor(data.covid2$mask)
+```
+
+```{r}
+# stay at home order
+stay <- read_csv("data/stay-at-home-covid.csv")
+names(stay)[1] <-"Country"
+
+# get weekly data
+stay$Date <- ymd(stay$Day)
+stay$Year <- year(stay$Date)
+stay$Week <- week(stay$Date)
+stay$Year_week <- paste(as.character(stay$Year),"_", as.character(stay$Week))
+
+weekly_stay <- aggregate(cbind(stay_home_requirements) ~ Year_week + Country, data=stay,FUN=mean)
+weekly_stay <- subset(weekly_stay,round(stay_home_requirements)-stay_home_requirements == 0)
+
+weekly_stay[is.na(weekly_stay)] <- 0
+
+# select
+weekly_stay.new <- weekly_stay[weekly_stay$Country %in% c("United States", "Norway","Ireland","Sweden","Finland","New Zealand"),]
+
+# merge data
+data.covid2 <- merge(data.covid2, weekly_stay.new, by=c("Country","Year_week"))
+
+names(data.covid2)[24] <-"stay"
+
+data.covid2$stay[data.covid2$stay == 2] <- 1
+data.covid2$stay <- as.factor(data.covid2$stay)
+```
+
+```{r}
+# stringency index
+stringency <- read_csv("data/covid-stringency-index.csv")
+names(stringency)[1] <-"Country"
+
+# get weekly data
+stringency$Date <- ymd(stringency$Day)
+stringency$Year <- year(stringency$Date)
+stringency$Week <- week(stringency$Date)
+stringency$Year_week <- paste(as.character(stringency$Year),"_", as.character(stringency$Week))
+
+weekly_stringency <- aggregate(cbind(stringency_index) ~ Year_week + Country, data=stringency,FUN=mean)
+
+weekly_stringency[is.na(weekly_stringency)] <- 0
+
+# select
+weekly_stringency.new <- weekly_stringency[weekly_stringency$Country %in% c("United States", "Norway","Ireland","Sweden","Finland","New Zealand"),]
+
+# merge data
+data.covid2 <- merge(data.covid2, weekly_stringency.new, by=c("Country","Year_week"))
+```
+
+The `stringency index` variable is a composite measure of nine of the response metrics (Hale et al., 2021). The nine metrics used to calculate the Stringency Index are: (1) school closures; (2) workplace closures; (3) cancellation of public events; (4) restrictions on public gatherings; (5) closures of public transport; (6) stay-at-home requirements; (7) public information campaigns; (8) restrictions on internal movements; (9) international travel controls. Besides, the `retail_and_recreation` variable is also examined, given a possible scenario that less people go to recreation spaces during the pandemic, which slows down the spread of the coronavirus. The variable is recorded as a percentage change, where the baseline days represent a normal value for that day of the week, given as median value over the five‑week period from January 3rd to February 6th 2020. The average values of the two variables under different mask policy is summarized below.
+
+```{r}
+ecls_cov <- c('stringency_index','retail_and_recreation')
+data.covid2 %>%
+  group_by(mask) %>%
+  select(one_of(ecls_cov)) %>%
+  summarise_all(funs(mean(., na.rm = T)))
+```
+
+The Welch two sample t-test is conducted to test the difference-in-means with regard to the response variable and mask order, and the two instrumental variables and mask order. According to the output below, the difference-in-means of the response variable between "no mask policy" and "has mask policy" is statistically significant at conventional levels of confidence. Similar conclusion holds of the stringency index between the two mask orders. However, the mean value of retail and recreation trips between the two mask groups is not statistically different, meaning that mask order did not change people's travel towards such places. Therefore, the covariate *stringency index* is selected for calculating propensity scores.
+
+```{r}
+# outcome variable
+with(data.covid2, t.test(New_cases_rate ~ mask))
+# pre-treatment covariates
+with(data.covid2, t.test(stringency_index ~ mask)) 
+with(data.covid2, t.test(retail_and_recreation ~ mask))
+```
+
+
+## Propensity score estimation
+
+The propensity score can be estimated through a logistic model, where the outcome variable *mask* is a binary variable indicating treatment status. The coefficients and statistics can be obtained from the model output below.
+
+```{r}
+m_ps <- glm(mask ~ stringency_index,
+            family = binomial(), data = data.covid2)
+summary(m_ps)
+```
+
+```{r}
+prs_df <- data.frame(pr_score = predict(m_ps, type = "response"),
+                     mask = m_ps$model$mask)
+```
+
+After estimating the propensity score, it is useful to plot histograms of the estimated propensity scores by treatment status, which is presented in Figure \@ref(fig:plot10). When the actual mask policy exists, the frequency of the estimated probability of having mask policy is higher and closer to 1, which is parallel with actual situations.
+
+```{r plot10, fig.align='center', fig.cap="Histograms of propensity scores by treatment status (mask order)", fig.height=4}
+prs_df <- prs_df[which(prs_df$pr_score <=1 & prs_df$pr_score>=0),]
+labs <- paste("Actual mask policy:", c("Yes", "No"))
+prs_df %>%
+  mutate(mask = ifelse(mask == 1, labs[1], labs[2])) %>%
+  ggplot(aes(x = pr_score)) +
+  geom_histogram(color = "white") +
+  facet_wrap(~mask) +
+  xlab("Probability of having mask policy") +
+  theme_bw()
+```
+
+A simple matching method is adopted to identify pairs of observations that have similar propensity scores but differ in treatment status (i.e. mask policies). The package `MatchIt` is used, which selects matched samples of the original treated and control groups with similar covariate distributions. In this way, the propensity score can be estimated in the background and observations be matched. A total of 358 observations are matched, which is a subset of data that relieves the impact of the stringency index and is balanced.
+
+```{r}
+library(MatchIt)
+data.covid3 <- data.covid2 %>%  # MatchIt does not allow missing values
+  select(New_cases_rate, mask, one_of(ecls_cov)) %>%
+  na.omit()
+
+mod_match <- matchit(mask ~ stringency_index, method = "nearest", data = data.covid3)
+
+covid_match <- match.data(mod_match)
+```
+
+**Visual inspection**
+
+Visual inspection is conducted to examine the covariate balance in the matched sample. Specifically, the mean of each covariate against the estimated propensity score is plotted separately by treatment status, which is shown in Figure \@ref(fig:plot11). According to the plot, the treatment and control groups have approximately identical means of the covariate *stringency index* at each value of the propensity score. Such fact especially holds for propensity score greater than 0.7. While for the propensity score below it, the treatment status *has mask policy* are lack of data. To address the shortcoming, more variables could be included on the basis of the current logistic model, where social-demographics variables such as unemployment rate is worth investigating. The sample size could also be enlarged.
+
+```{r plot11, fig.align='center', fig.cap="Propensity score of the covariate by treatment status",out.width = '50%'}
+fn_bal <- function(dta, variable) {
+  dta$variable <- dta[, variable]
+  dta$mask <- as.factor(dta$mask)
+  support <- c(min(dta$variable), max(dta$variable))
+  ggplot(dta, aes(x = distance, y = variable, color = mask)) +
+    geom_point(alpha = 0.2, size = 1.3) +
+    geom_smooth(method = "loess", se = F) +
+    xlab("Propensity score") +
+    ylab("Stringency index") +
+    theme_bw() +
+    ylim(support)
+}
+
+fn_bal(covid_match, "stringency_index")
+```
+
+# Discussion
+
+The project uses a two-way ANOVA model to explore the impact of mask orders on the weekly new COVID-19 cases across countries. Specifically, the country and the mask order are chosen as the treatment variables, and the selection of countries are based on socio-demographic factors. The response variable is defined as the weekly new cases per 1,000 person, which captures population characteristics of countries and alleviates the impact of population on the new cases. Multiple data sources are utilized, where the WHO COVID-19 data, facial Covering Policies data, as well as demographic data are combined to define the variables, and the mobility data and stringency index are implemented for causal analysis.
+
+Results showed that there exists differences in the COVID-19 weekly new cases across different strictness levels of mask orders. Differences in the COVID-19 weekly new cases are also found among countries, regardless of their similarities in GDP per capita and population density. Besides, the interaction of country and mask order is also associated with the COVID-19 weekly new cases. This reflects that countries conduct different mask policies to face with the pandemic challenge. Furthermore, according to the pairwise comparison, it is found that "no mask policy" corresponds to the lowest COVID-19 weekly new cases. This is out of the common sense that stricter mask order should result in fewer new cases. A possible reason is that countries tend to respond after the pandemic situation becomes worse, instead of looking ahead and carry out mask policy in advance. Apart from that, the pairwise comparison also shows that the score means of the number of weekly new cases is mostly statistically similar among different strictness levels of mask orders. 
+
+Causal inference is conducted to assess the potential impact of other factors on the current study. The mobility factor and stringency index are selected as potential instrumental variables. It is found that the stringency index is a covariate that have influence on the outcome. The propensity score is therefore estimated through logistic regression, followed by a matching algorithm to obtain balanced sample. Results showed that the estimated propensity score is similar between the two treatment status (i.e., no mask policy, has mask policy), which means the matched sample can alleviates the impacts of stringency index on the outcome. However, such similarity does not hold for all levels of propensity scores. In future analysis, the issue is worth being address by expanding the sample size or adding more instrumental variables to get a better logistic model.
+
+In the future decision making of mask policies to face with the pandemic challenge, it is encouraged for the countries to carry out the policy by looking at the future tendency of the COVID-19 new cases, rather than passively react with the current situation. In the current study, the unequal variance problem is detected, which may result in some bias of the analysis. This is due to the limited sample size of each cell. Future study may increase the number of treatments to deal with such problem. Moreover, the impact of other variables on the COVID-19 new cases, such as vaccination policy, stay-at-home restrictions, school and workplace closures, etc., are worth investigating. Other models may be considered to include more variables, such as mixed effect model or three-way ANOVA model.
+
+
+# Reference
+
+Eikenberry, S. E., Mancuso, M., Iboi, E., Phan, T., Eikenberry, K., Kuang, Y., ... & Gumel, A. B. (2020). To mask or not to mask: Modeling the potential for face mask use by the general public to curtail the COVID-19 pandemic. Infectious disease modelling, 5, 293-308.
+
+Hale, T., Angrist, N., Goldszmidt, R., Kira, B., Petherick, A., Phillips, T., ... & Tatlow, H. (2021). A global panel database of pandemic policies (Oxford COVID-19 Government Response Tracker). Nature Human Behaviour, 5(4), 529-538.
+
+Imbens, G. W., & Rubin, D. B. (2015). Causal inference in statistics, social, and biomedical sciences. Cambridge University Press.
+
+Rosenbaum, P. R., & Rubin, D. B. (1983). The central role of the propensity score in observational studies for causal effects. Biometrika, 70(1), 41-55.
+
+
+# Appendix
+
+R code for the project: 
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+
