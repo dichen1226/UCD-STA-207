@@ -1,5 +1,5 @@
 ---
-title: "The Impact of Testing-policy Strictness on Daily COVID-19 New Cases Per Capita across Four Different Countries"
+title: "The Impact of Testing-policy Strictness on Daily COVID-19 New Cases Per Capita across Three Different Countries"
 author: "Yanlin Qi, 918983329"
 date: "3/12/2022"
 output: html_document
@@ -396,7 +396,7 @@ plot(tk, las=1 , col="brown",cex.axis=0.8)
 
 ## Propensity Score Weighting
 
-Propensity score weighting is used to examine the effect of a treatment by accounting the covariates receiving the treatment(Rosebaum and Rubin 1983). The variance in the outcome between treated and untreated grouped may depend on an external variable that predicts the treatment rather than the treatment itself. In the observational study, it requires the propensity score weighting techniques to identify and reduce the bias led by the non-random assignment of treatment. In this study, the mobility data is added  as an instrumental variables to the treatment for causal analysis.
+Propensity score weighting is used to examine the effect of a treatment by accounting the covariates receiving the treatment [4]. The variance in the outcome between treated and untreated grouped may depend on an external variable that predicts the treatment rather than the treatment itself. In the observational study, it requires the propensity score weighting techniques to identify and reduce the bias led by the non-random assignment of treatment. In this study, the mobility data is added  as an instrumental variables to the treatment for causal analysis.
 
 ```{r}
 extra_x <- read_csv("changes-visitors-covid.csv")
@@ -439,6 +439,8 @@ It turns out that the covariates are not associated with the lockdown order at 9
 
 In this report, the effects of different countries and different strictness levels of COVID-19 testing policies on the daily new death cases per 1, 000 population by conducting a two-way ANOVA model with interactive effects. By the inferential analysis, we can statistically conclude that there are significant differences of difference strictness levels of COVID-19 testing policies across different countries, with India and  strictness level 2 corresponds having the lowest daily new cases per 1, 000 population.
 
+In this report, the causal inference is tried to be completed. However, the selection of instrumental variables are not successful. Hence, it have not completed yet. But still, the causal inference may still not reasonable since the spread of covid and daily new deaths are complicated and dependent on many variables. This work remains to be further completed.
+
 # References
 
 [1] Tamargo, Javier A., Haley R. Martin, Janet Diaz-Martinez, Mary Jo Trepka, Ivan Delgado-Enciso, Angelique Johnson, Raul N. Mandler, Suzanne Siminski, Pamina M. Gorback, and Marianna K. Baum. "COVID-19 Testing and the Impact of the Pandemic on the Miami Adult Studies on HIV Cohort." Journal of acquired immune deficiency syndromes (1999) 87, no. 4 (2021): 1016.
@@ -447,14 +449,12 @@ In this report, the effects of different countries and different strictness leve
 
 [3] https://ourworldindata.org/covid-testing-contact-tracing
 
+[4] Imbens, G., & Rubin, D. (2015). Stratified Randomized Experiments. In Causal Inference for Statistics, Social, and Biomedical Sciences: An Introduction (pp. 187-218). Cambridge: Cambridge University Press. doi:10.1017/CBO9781139025751.010
 
 # Acknowledgement {-}
 
 I have discussed this project with your teammates.
 
-# Reference {-}
-
-Imbens, G., & Rubin, D. (2015). Stratified Randomized Experiments. In Causal Inference for Statistics, Social, and Biomedical Sciences: An Introduction (pp. 187-218). Cambridge: Cambridge University Press. doi:10.1017/CBO9781139025751.010
 
 # Session info {-}
 
